@@ -17,6 +17,7 @@ import com.kunfei.bookshelf.base.observer.MyObserver;
 import com.kunfei.bookshelf.bean.BookChapterBean;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.BookSourceBean;
+import com.kunfei.bookshelf.bean.OpenChapterBean;
 import com.kunfei.bookshelf.bean.SearchBookBean;
 import com.kunfei.bookshelf.bean.TwoDataBean;
 import com.kunfei.bookshelf.constant.RxBusTag;
@@ -56,15 +57,17 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
                 String noteUrl = intent.getStringExtra("noteUrl");
                 if (!TextUtils.isEmpty(noteUrl)) {
                     bookShelf = BookshelfHelp.getBook(noteUrl);
-                } else {
-                    mView.finish();
-                    return;
                 }
+            }
+            if (bookShelf == null) {
+                mView.finish();
+                return;
             }
             inBookShelf = true;
             searchBook = new SearchBookBean();
             searchBook.setNoteUrl(bookShelf.getNoteUrl());
             searchBook.setTag(bookShelf.getTag());
+            chapterBeanList = BookshelfHelp.getChapterList(bookShelf.getNoteUrl());
         } else {
             initBookFormSearch((SearchBookBean) BitIntentDataManager.getInstance().getData(key));
         }
@@ -108,6 +111,7 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
 
     @Override
     public void getBookShelfInfo() {
+        if (bookShelf == null) return;
         if (BookShelfBean.LOCAL_TAG.equals(bookShelf.getTag())) return;
         WebBookModel.getInstance().getBookInfo(bookShelf)
                 .flatMap(bookShelfBean -> WebBookModel.getInstance().getChapterList(bookShelfBean))
@@ -283,5 +287,15 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
     public void hadAddOrRemoveBook(BookShelfBean bookShelfBean) {
         bookShelf = bookShelfBean;
         mView.updateView();
+    }
+
+    @Subscribe(thread = EventThread.MAIN_THREAD, tags = {@Tag(RxBusTag.SKIP_TO_CHAPTER)})
+    public void skipToChapter(OpenChapterBean openChapterBean) {
+        bookShelf.setDurChapter(openChapterBean.getChapterIndex());
+        bookShelf.setDurChapterPage(openChapterBean.getPageIndex());
+        if (inBookShelf) {
+            BookshelfHelp.saveBookToShelf(bookShelf);
+        }
+        mView.readBook();
     }
 }
